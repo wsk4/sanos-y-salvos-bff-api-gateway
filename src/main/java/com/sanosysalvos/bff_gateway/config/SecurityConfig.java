@@ -21,9 +21,7 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(authz -> authz
-                // Permite acceso libre a endpoints públicos si lo necesitas
                 .requestMatchers("/api/bff/v1/publico/**").permitAll()
-                // Protege el resto de las rutas exigiendo un token válido
                 .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt());

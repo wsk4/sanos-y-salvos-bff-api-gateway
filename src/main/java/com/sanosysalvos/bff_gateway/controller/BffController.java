@@ -22,10 +22,8 @@ public class BffController {
     }
 
     @GetMapping("/dashboard")
-    // Cambiamos List<Object> por List<MascotaConsolidadaDTO>
     public ResponseEntity<List<MascotaConsolidadaDTO>> cargarDashboardPrincipal() {
 
-        // El servicio ahora nos entrega la lista perfectamente estructurada y cruzada
         List<MascotaConsolidadaDTO> consolidado = orquestadorService.obtenerResumenDashboard();
 
         return ResponseEntity.ok(consolidado);

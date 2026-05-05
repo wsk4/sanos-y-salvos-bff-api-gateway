@@ -3,17 +3,23 @@ package com.sanosysalvos.bff_gateway.service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.stereotype.Service;
-// ¡Importante! Importamos RestClient en lugar de RestTemplate
 import org.springframework.web.client.RestClient;
 
 import com.sanosysalvos.bff_gateway.dto.MascotaConsolidadaDTO;
+import com.sanosysalvos.bff_gateway.dto.MascotaDTO;
+import com.sanosysalvos.bff_gateway.dto.UbicacionDTO;
 
 @Service
 public class OrquestadorService {
+
+    private static final Logger log = LoggerFactory.getLogger(OrquestadorService.class);
 
     @Value("${microservicio.mascotas.url}")
     private String mascotasUrl;
@@ -21,7 +27,6 @@ public class OrquestadorService {
     @Value("${microservicio.geolocalizacion.url}")
     private String geolocalizacionUrl;
 
-    // PUNTO 3: Usamos la API moderna RestClient
     private final RestClient restClient;
 
     public OrquestadorService() {
@@ -29,68 +34,52 @@ public class OrquestadorService {
     }
 
     public List<MascotaConsolidadaDTO> obtenerResumenDashboard() {
+        List<MascotaDTO> mascotas;
+        List<UbicacionDTO> geolocalizaciones = new ArrayList<>();
 
-        List<Map<String, Object>> mascotas = null;
-        List<Map<String, Object>> geolocalizaciones = null;
-
-        // PUNTO 2: Manejo de Excepciones y Tolerancia a Fallos
-        
-        // 1. Pedir datos al Microservicio de Mascotas
         try {
             mascotas = restClient.get()
                     .uri(mascotasUrl)
                     .retrieve()
-                    .body(new ParameterizedTypeReference<List<Map<String, Object>>>() {});
+                    .body(new ParameterizedTypeReference<List<MascotaDTO>>() {
+                    });
         } catch (Exception e) {
-            // Si Mascotas falla, imprimimos el error en consola y retornamos lista vacía para no tumbar el Frontend
-            System.err.println("⚠️ CRÍTICO: Falló la conexión con MS Mascotas: " + e.getMessage());
-            return new ArrayList<>(); 
+            log.error("⚠️ ERROR CRÍTICO: Falló conexión con MS Mascotas. Motivo: {}", e.getMessage());
+            return new ArrayList<>();
         }
 
-        // 2. Pedir datos al Microservicio de Geolocalización
         try {
-            geolocalizaciones = restClient.get()
+            List<UbicacionDTO> response = restClient.get()
                     .uri(geolocalizacionUrl)
                     .retrieve()
-                    .body(new ParameterizedTypeReference<List<Map<String, Object>>>() {});
-        } catch (Exception e) {
-            // Si Geolocalización falla, capturamos el error pero NO detenemos la ejecución. 
-            // Las variables de latitud y longitud quedarán en null, pero las mascotas se mostrarán.
-            System.err.println("⚠️ ADVERTENCIA: Falló la conexión con MS Geolocalización: " + e.getMessage());
-        }
-
-        // 3. Crear la lista final que enviaremos a React
-        List<MascotaConsolidadaDTO> consolidados = new ArrayList<>();
-
-        if (mascotas != null) {
-            for (Map<String, Object> mascota : mascotas) {
-                Integer idMascota = (Integer) mascota.get("id");
-
-                Map<String, Object> ubicacionMascota = null;
-                // Verificamos que la lista de geolocalizaciones exista (no haya fallado)
-                if (geolocalizaciones != null) {
-                    ubicacionMascota = geolocalizaciones.stream()
-                            .filter(geo -> idMascota.equals(geo.get("mascotaId")))
-                            .findFirst()
-                            .orElse(null);
-                }
-
-                // 4. Construimos el DTO
-                MascotaConsolidadaDTO dto = MascotaConsolidadaDTO.builder()
-                        .idMascota(idMascota)
-                        .nombre((String) mascota.get("nombre"))
-                        .raza((String) mascota.get("raza"))
-                        .estado((String) mascota.get("estado"))
-                        // Si se cayó el MS de Geolocalización, ubicacionMascota será null y esto no dará error
-                        .latitud(ubicacionMascota != null ? (Double) ubicacionMascota.get("latitud") : null)
-                        .longitud(ubicacionMascota != null ? (Double) ubicacionMascota.get("longitud") : null)
-                        .build();
-
-                consolidados.add(dto);
+                    .body(new ParameterizedTypeReference<List<UbicacionDTO>>() {
+                    });
+            if (response != null) {
+                geolocalizaciones = response;
             }
+        } catch (Exception e) {
+            log.warn("⚠️ ADVERTENCIA: No se pudo obtener geolocalización. El dashboard se mostrará sin coordenadas.");
         }
 
-        // 5. Retornamos la lista combinada (con o sin geolocalizaciones, pero siempre funcional)
-        return consolidados;
+        Map<Integer, UbicacionDTO> ubicacionMap = geolocalizaciones.stream()
+                .collect(Collectors.toMap(UbicacionDTO::getMascotaId, u -> u, (u1, u2) -> u1));
+
+        if (mascotas == null) {
+            return new ArrayList<>();
+        }
+
+        return mascotas.stream()
+                .map(mascota -> {
+                    UbicacionDTO ubicacion = ubicacionMap.get(mascota.getId());
+                    return MascotaConsolidadaDTO.builder()
+                            .idMascota(mascota.getId())
+                            .nombre(mascota.getNombre())
+                            .raza(mascota.getRaza())
+                            .estado(mascota.getEstado())
+                            .latitud(ubicacion != null ? ubicacion.getLatitud() : null)
+                            .longitud(ubicacion != null ? ubicacion.getLongitud() : null)
+                            .build();
+                })
+                .collect(Collectors.toList());
     }
 }

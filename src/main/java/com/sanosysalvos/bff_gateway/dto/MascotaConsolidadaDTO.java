@@ -11,7 +11,6 @@ public class MascotaConsolidadaDTO {
     private String nombre;
     private String raza;
     private String estado;
-    // Información proveniente del MS de Geolocalización
     private Double latitud;
     private Double longitud;
 }
