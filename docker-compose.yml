@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: sanos_bff_gateway
+    container_name: sanos-bff-gateway
     ports:
       - "${SERVER_PORT}:${SERVER_PORT}"
     environment:
