@@ -12,7 +12,6 @@ services:
       SERVER_PORT: ${SERVER_PORT}
       MS_MASCOTAS_URL: ${MS_MASCOTAS_URL}
       MS_GEOLOCALIZACION_URL: ${MS_GEOLOCALIZACION_URL}
-      # Pasamos la URL de Clerk al contenedor
       CLERK_ISSUER_URI: ${CLERK_ISSUER_URI}
     networks:
       - sanos-network
