@@ -6,13 +6,15 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: sanos-bff-gateway
+    env_file:               
+      - .env                 
     ports:
       - "${SERVER_PORT}:${SERVER_PORT}"
     environment:
       SERVER_PORT: ${SERVER_PORT}
       MS_MASCOTAS_URL: ${MS_MASCOTAS_URL}
       MS_GEOLOCALIZACION_URL: ${MS_GEOLOCALIZACION_URL}
-      CLERK_ISSUER_URI: ${CLERK_ISSUER_URI}
+      CLERK_ISSUER_URL: ${CLERK_ISSUER_URL}
     networks:
       - sanos-network
 
