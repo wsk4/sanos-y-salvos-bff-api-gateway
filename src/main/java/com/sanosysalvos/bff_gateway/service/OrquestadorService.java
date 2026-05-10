@@ -6,6 +6,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sanosysalvos.bff_gateway.dto.MascotaConsolidadaDTO;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
@@ -31,8 +33,14 @@ public class OrquestadorService {
     private String geoUrl;
 
     public Object registrarMascotaConUbicacion(String mascotaJson, String direccion, MultipartFile archivo) {
+
+        HttpHeaders jsonHeaders = new HttpHeaders();
+        jsonHeaders.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> mascotaPart = new HttpEntity<>(mascotaJson, jsonHeaders);
+
         MultiValueMap<String, Object> bodyMascota = new LinkedMultiValueMap<>();
-        bodyMascota.add("mascota", mascotaJson);
+        bodyMascota.add("mascota", mascotaPart);
+
         if (archivo != null) {
             bodyMascota.add("archivo", archivo.getResource());
         }
@@ -79,13 +87,19 @@ public class OrquestadorService {
     }
 
     public Object actualizarMascota(Integer id, String mascotaJson, MultipartFile archivo) {
+
+        HttpHeaders jsonHeaders = new HttpHeaders();
+        jsonHeaders.setContentType(MediaType.APPLICATION_JSON);
+        HttpEntity<String> mascotaPart = new HttpEntity<>(mascotaJson, jsonHeaders);
+
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-        body.add("mascota", mascotaJson);
+        body.add("mascota", mascotaPart);
+
         if (archivo != null) {
             body.add("archivo", archivo.getResource());
         }
 
-        return restClient.put()
+        return restClient.patch()
                 .uri(mascotasUrl + "/" + id)
                 .contentType(MediaType.MULTIPART_FORM_DATA)
                 .body(body)
