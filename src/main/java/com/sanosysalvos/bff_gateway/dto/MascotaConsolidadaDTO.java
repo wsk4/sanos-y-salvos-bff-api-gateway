@@ -13,4 +13,5 @@ public class MascotaConsolidadaDTO {
     private String estado;
     private Double latitud;
     private Double longitud;
+    private String fotoBytes;
 }

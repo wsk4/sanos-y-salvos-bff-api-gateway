@@ -81,49 +81,52 @@ public class OrquestadorService {
     }
 
     public List<MascotaConsolidadaDTO> obtenerResumenDashboard() {
-        try {
-            String respuestaMascotas = restClient.get()
-                    .uri(mascotasUrl)
-                    .retrieve()
-                    .body(String.class);
+    try {
+        String respuestaMascotas = restClient.get()
+                .uri(mascotasUrl)
+                .retrieve()
+                .body(String.class);
 
-            JsonNode mascotas = objectMapper.readTree(respuestaMascotas);
+        JsonNode mascotas = objectMapper.readTree(respuestaMascotas);
 
-            String respuestaGeo = restClient.get()
-                    .uri(geoUrl)
-                    .retrieve()
-                    .body(String.class);
+        String respuestaGeo = restClient.get()
+                .uri(geoUrl)
+                .retrieve()
+                .body(String.class);
 
-            JsonNode ubicaciones = objectMapper.readTree(respuestaGeo);
+        JsonNode ubicaciones = objectMapper.readTree(respuestaGeo);
 
-            Map<Integer, JsonNode> ubiPorMascota = new HashMap<>();
-            for (JsonNode u : ubicaciones) {
-                ubiPorMascota.put(u.get("mascotaId").asInt(), u);
-            }
-
-            List<MascotaConsolidadaDTO> resultado = new java.util.ArrayList<>();
-            for (JsonNode m : mascotas) {
-                Integer id = m.get("id").asInt();
-                JsonNode ubi = ubiPorMascota.get(id);
-
-                MascotaConsolidadaDTO dto = MascotaConsolidadaDTO.builder()
-                        .idMascota(id)
-                        .nombre(m.has("nombre") ? m.get("nombre").asText() : null)
-                        .raza(m.has("raza") ? m.get("raza").asText() : null)
-                        .estado(m.has("estado") ? m.get("estado").asText() : null)
-                        .latitud(ubi != null && ubi.has("latitud") ? ubi.get("latitud").asDouble() : null)
-                        .longitud(ubi != null && ubi.has("longitud") ? ubi.get("longitud").asDouble() : null)
-                        .build();
-
-                resultado.add(dto);
-            }
-
-            return resultado;
-
-        } catch (Exception e) {
-            throw new RuntimeException("Error al obtener resumen del dashboard", e);
+        Map<Integer, JsonNode> ubiPorMascota = new HashMap<>();
+        for (JsonNode u : ubicaciones) {
+            ubiPorMascota.put(u.get("mascotaId").asInt(), u);
         }
+
+        List<MascotaConsolidadaDTO> resultado = new java.util.ArrayList<>();
+        for (JsonNode m : mascotas) {
+            Integer id = m.get("id").asInt();
+            JsonNode ubi = ubiPorMascota.get(id);
+
+            MascotaConsolidadaDTO dto = MascotaConsolidadaDTO.builder()
+                    .idMascota(id)
+                    .nombre(m.has("nombre") ? m.get("nombre").asText() : null)
+                    .raza(m.has("raza") ? m.get("raza").asText() : null)
+                    .estado(m.has("estado") ? m.get("estado").asText() : null)
+                    .fotoBytes(m.has("fotoBytes") && !m.get("fotoBytes").isNull()
+                            ? m.get("fotoBytes").asText()
+                            : null)
+                    .latitud(ubi != null && ubi.has("latitud") ? ubi.get("latitud").asDouble() : null)
+                    .longitud(ubi != null && ubi.has("longitud") ? ubi.get("longitud").asDouble() : null)
+                    .build();
+
+            resultado.add(dto);
+        }
+
+        return resultado;
+
+    } catch (Exception e) {
+        throw new RuntimeException("Error al obtener resumen del dashboard", e);
     }
+}
 
     public MascotaConsolidadaDTO obtenerDetalleMascota(Integer id) {
         return MascotaConsolidadaDTO.builder().idMascota(id).build();
