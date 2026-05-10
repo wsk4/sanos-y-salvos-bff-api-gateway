@@ -22,7 +22,8 @@ import java.util.Map;
 public class OrquestadorService {
 
     private final RestClient restClient = RestClient.create();
-    private final ObjectMapper objectMapper; 
+    private final ObjectMapper objectMapper;
+
     @Value("${microservicio.mascotas.url}")
     private String mascotasUrl;
 
@@ -49,8 +50,8 @@ public class OrquestadorService {
 
             Map<String, Object> bodyGeo = new HashMap<>();
             bodyGeo.put("mascotaId", mascotaId);
-            bodyGeo.put("direccion", direccion); 
-            bodyGeo.put("radioBusqueda", 5.0); 
+            bodyGeo.put("direccion", direccion);
+            bodyGeo.put("radioBusqueda", 5.0);
 
             Object respuestaGeo = restClient.post()
                     .uri(geoUrl)
@@ -59,31 +60,30 @@ public class OrquestadorService {
                     .retrieve()
                     .body(Object.class);
 
-            Map<String, Object> resultadoFinal = new HashMap<>();
-            resultadoFinal.put("mascota", mascotaNode);
-            resultadoFinal.put("ubicacion", respuestaGeo);
-            resultadoFinal.put("mensaje", "Registro orquestado completado con éxito");
-
-            return resultadoFinal;
+            Map<String, Object> finalResponse = new HashMap<>();
+            finalResponse.put("mascota", mascotaNode);
+            finalResponse.put("ubicacion", respuestaGeo);
+            return finalResponse;
 
         } catch (JsonProcessingException e) {
-            throw new RuntimeException("Error extrayendo el ID de la mascota", e);
+            throw new RuntimeException("Error procesando respuesta del microservicio", e);
         }
     }
 
     public List<MascotaConsolidadaDTO> obtenerResumenDashboard() {
-        return List.of(); 
+        return List.of();
     }
 
     public MascotaConsolidadaDTO obtenerDetalleMascota(Integer id) {
-        Object mascota = restClient.get().uri(mascotasUrl + "/" + id).retrieve().body(Object.class);
-        return MascotaConsolidadaDTO.builder().id(id).build(); 
+        return MascotaConsolidadaDTO.builder().idMascota(id).build();
     }
 
     public Object actualizarMascota(Integer id, String mascotaJson, MultipartFile archivo) {
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         body.add("mascota", mascotaJson);
-        if (archivo != null) body.add("archivo", archivo.getResource());
+        if (archivo != null) {
+            body.add("archivo", archivo.getResource());
+        }
 
         return restClient.put()
                 .uri(mascotasUrl + "/" + id)
@@ -97,6 +97,7 @@ public class OrquestadorService {
         restClient.delete().uri(mascotasUrl + "/" + id).retrieve().toBodilessEntity();
         try {
             restClient.delete().uri(geoUrl + "/mascota/" + id).retrieve().toBodilessEntity();
-        } catch(Exception ignored) {}
+        } catch (Exception ignored) {
+        }
     }
 }
