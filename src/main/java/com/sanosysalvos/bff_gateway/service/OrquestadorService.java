@@ -1,85 +1,102 @@
 package com.sanosysalvos.bff_gateway.service;
 
-import java.util.ArrayList;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sanosysalvos.bff_gateway.dto.MascotaConsolidadaDTO;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
-
-import com.sanosysalvos.bff_gateway.dto.MascotaConsolidadaDTO;
-import com.sanosysalvos.bff_gateway.dto.MascotaDTO;
-import com.sanosysalvos.bff_gateway.dto.UbicacionDTO;
 
 @Service
+@RequiredArgsConstructor
 public class OrquestadorService {
 
-    private static final Logger log = LoggerFactory.getLogger(OrquestadorService.class);
-
+    private final RestClient restClient = RestClient.create();
+    private final ObjectMapper objectMapper; 
     @Value("${microservicio.mascotas.url}")
     private String mascotasUrl;
 
     @Value("${microservicio.geolocalizacion.url}")
-    private String geolocalizacionUrl;
+    private String geoUrl;
 
-    private final RestClient restClient;
+    public Object registrarMascotaConUbicacion(String mascotaJson, String direccion, MultipartFile archivo) {
+        MultiValueMap<String, Object> bodyMascota = new LinkedMultiValueMap<>();
+        bodyMascota.add("mascota", mascotaJson);
+        if (archivo != null) {
+            bodyMascota.add("archivo", archivo.getResource());
+        }
 
-    public OrquestadorService() {
-        this.restClient = RestClient.create();
+        String respuestaMascotaStr = restClient.post()
+                .uri(mascotasUrl)
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .body(bodyMascota)
+                .retrieve()
+                .body(String.class);
+
+        try {
+            JsonNode mascotaNode = objectMapper.readTree(respuestaMascotaStr);
+            Integer mascotaId = mascotaNode.get("id").asInt();
+
+            Map<String, Object> bodyGeo = new HashMap<>();
+            bodyGeo.put("mascotaId", mascotaId);
+            bodyGeo.put("direccion", direccion); 
+            bodyGeo.put("radioBusqueda", 5.0); 
+
+            Object respuestaGeo = restClient.post()
+                    .uri(geoUrl)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(bodyGeo)
+                    .retrieve()
+                    .body(Object.class);
+
+            Map<String, Object> resultadoFinal = new HashMap<>();
+            resultadoFinal.put("mascota", mascotaNode);
+            resultadoFinal.put("ubicacion", respuestaGeo);
+            resultadoFinal.put("mensaje", "Registro orquestado completado con éxito");
+
+            return resultadoFinal;
+
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Error extrayendo el ID de la mascota", e);
+        }
     }
 
     public List<MascotaConsolidadaDTO> obtenerResumenDashboard() {
-        List<MascotaDTO> mascotas;
-        List<UbicacionDTO> geolocalizaciones = new ArrayList<>();
+        return List.of(); 
+    }
 
+    public MascotaConsolidadaDTO obtenerDetalleMascota(Integer id) {
+        Object mascota = restClient.get().uri(mascotasUrl + "/" + id).retrieve().body(Object.class);
+        return MascotaConsolidadaDTO.builder().id(id).build(); 
+    }
+
+    public Object actualizarMascota(Integer id, String mascotaJson, MultipartFile archivo) {
+        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
+        body.add("mascota", mascotaJson);
+        if (archivo != null) body.add("archivo", archivo.getResource());
+
+        return restClient.put()
+                .uri(mascotasUrl + "/" + id)
+                .contentType(MediaType.MULTIPART_FORM_DATA)
+                .body(body)
+                .retrieve()
+                .body(Object.class);
+    }
+
+    public void eliminarMascotaCompleta(Integer id) {
+        restClient.delete().uri(mascotasUrl + "/" + id).retrieve().toBodilessEntity();
         try {
-            mascotas = restClient.get()
-                    .uri(mascotasUrl)
-                    .retrieve()
-                    .body(new ParameterizedTypeReference<List<MascotaDTO>>() {
-                    });
-        } catch (Exception e) {
-            log.error("⚠️ ERROR CRÍTICO: Falló conexión con MS Mascotas. Motivo: {}", e.getMessage());
-            return new ArrayList<>();
-        }
-
-        try {
-            List<UbicacionDTO> response = restClient.get()
-                    .uri(geolocalizacionUrl)
-                    .retrieve()
-                    .body(new ParameterizedTypeReference<List<UbicacionDTO>>() {
-                    });
-            if (response != null) {
-                geolocalizaciones = response;
-            }
-        } catch (Exception e) {
-            log.warn("⚠️ ADVERTENCIA: No se pudo obtener geolocalización. El dashboard se mostrará sin coordenadas.");
-        }
-
-        Map<Integer, UbicacionDTO> ubicacionMap = geolocalizaciones.stream()
-                .collect(Collectors.toMap(UbicacionDTO::getMascotaId, u -> u, (u1, u2) -> u1));
-
-        if (mascotas == null) {
-            return new ArrayList<>();
-        }
-
-        return mascotas.stream()
-                .map(mascota -> {
-                    UbicacionDTO ubicacion = ubicacionMap.get(mascota.getId());
-                    return MascotaConsolidadaDTO.builder()
-                            .idMascota(mascota.getId())
-                            .nombre(mascota.getNombre())
-                            .raza(mascota.getRaza())
-                            .estado(mascota.getEstado())
-                            .latitud(ubicacion != null ? ubicacion.getLatitud() : null)
-                            .longitud(ubicacion != null ? ubicacion.getLongitud() : null)
-                            .build();
-                })
-                .collect(Collectors.toList());
+            restClient.delete().uri(geoUrl + "/mascota/" + id).retrieve().toBodilessEntity();
+        } catch(Exception ignored) {}
     }
 }
