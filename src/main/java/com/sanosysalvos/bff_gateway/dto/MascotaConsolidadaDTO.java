@@ -11,7 +11,9 @@ public class MascotaConsolidadaDTO {
     private String nombre;
     private String raza;
     private String estado;
+    private String contactoInfo;
     private Double latitud;
     private Double longitud;
+    private String direccion;
     private String fotoBytes;
 }
