@@ -111,6 +111,8 @@ public class OrquestadorService {
                         .nombre(m.has("nombre") ? m.get("nombre").asText() : null)
                         .raza(m.has("raza") ? m.get("raza").asText() : null)
                         .estado(m.has("estado") ? m.get("estado").asText() : null)
+                        .color(m.has("color") ? m.get("color").asText() : null)
+                        .tamano(m.has("tamano") ? m.get("tamano").asText() : null)
                         .fotoBytes(m.has("fotoBytes") && !m.get("fotoBytes").isNull()
                                 ? m.get("fotoBytes").asText()
                                 : null)
@@ -135,7 +137,6 @@ public class OrquestadorService {
     }
 
     public Object actualizarMascota(Integer id, String mascotaJson, MultipartFile archivo) {
-
         HttpHeaders jsonHeaders = new HttpHeaders();
         jsonHeaders.setContentType(MediaType.APPLICATION_JSON);
         HttpEntity<String> mascotaPart = new HttpEntity<>(mascotaJson, jsonHeaders);
