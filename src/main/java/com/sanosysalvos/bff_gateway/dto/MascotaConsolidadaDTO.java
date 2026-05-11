@@ -1,0 +1,21 @@
+package com.sanosysalvos.bff_gateway.dto;
+
+import lombok.Builder;
+import lombok.Data;
+
+@Data
+@Builder
+public class MascotaConsolidadaDTO {
+
+    private Integer idMascota;
+    private String nombre;
+    private String raza;
+    private String estado;
+    private String color;
+    private String tamano;
+    private String contactoInfo;
+    private Double latitud;
+    private Double longitud;
+    private String direccion;
+    private String fotoBytes;
+}
