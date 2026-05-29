@@ -11,21 +11,20 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sanosysalvos.bff_gateway.dto.MascotaConsolidadaDTO;
 
-import lombok.RequiredArgsConstructor;
-
 @Service
-@RequiredArgsConstructor
 public class OrquestadorService {
 
-    private final RestClient restClient = RestClient.create();
+    private final RestClient restClient;
     private final ObjectMapper objectMapper;
 
     @Value("${microservicio.mascotas.url}")
@@ -33,6 +32,12 @@ public class OrquestadorService {
 
     @Value("${microservicio.geolocalizacion.url}")
     private String geoUrl;
+
+    // Fix #5: inyección via Builder en vez de RestClient.create()
+    public OrquestadorService(RestClient.Builder restClientBuilder, ObjectMapper objectMapper) {
+        this.restClient = restClientBuilder.build();
+        this.objectMapper = objectMapper;
+    }
 
     public Object registrarMascotaConUbicacion(String mascotaJson, String direccion, MultipartFile archivo) {
 
@@ -42,17 +47,22 @@ public class OrquestadorService {
 
         MultiValueMap<String, Object> bodyMascota = new LinkedMultiValueMap<>();
         bodyMascota.add("mascota", mascotaPart);
-
         if (archivo != null) {
             bodyMascota.add("archivo", archivo.getResource());
         }
 
-        String respuestaMascotaStr = restClient.post()
-                .uri(mascotasUrl)
-                .contentType(MediaType.MULTIPART_FORM_DATA)
-                .body(bodyMascota)
-                .retrieve()
-                .body(String.class);
+        // Fix 500→400: captura errores del MS mascotas y los propaga con el status correcto
+        String respuestaMascotaStr;
+        try {
+            respuestaMascotaStr = restClient.post()
+                    .uri(mascotasUrl)
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(bodyMascota)
+                    .retrieve()
+                    .body(String.class);
+        } catch (HttpClientErrorException e) {
+            throw new ResponseStatusException(e.getStatusCode(), e.getResponseBodyAsString());
+        }
 
         try {
             JsonNode mascotaNode = objectMapper.readTree(respuestaMascotaStr);
@@ -63,12 +73,18 @@ public class OrquestadorService {
             bodyGeo.put("direccion", direccion);
             bodyGeo.put("radioBusqueda", 5.0);
 
-            Object respuestaGeo = restClient.post()
-                    .uri(geoUrl)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(bodyGeo)
-                    .retrieve()
-                    .body(Object.class);
+            Object respuestaGeo;
+            try {
+                respuestaGeo = restClient.post()
+                        .uri(geoUrl)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .body(bodyGeo)
+                        .retrieve()
+                        .body(Object.class);
+            } catch (HttpClientErrorException e) {
+                // Si geo falla, la mascota ya fue creada — se propaga el error igual
+                throw new ResponseStatusException(e.getStatusCode(), e.getResponseBodyAsString());
+            }
 
             Map<String, Object> finalResponse = new HashMap<>();
             finalResponse.put("mascota", mascotaNode);
@@ -133,7 +149,49 @@ public class OrquestadorService {
     }
 
     public MascotaConsolidadaDTO obtenerDetalleMascota(Integer id) {
-        return MascotaConsolidadaDTO.builder().idMascota(id).build();
+        try {
+            String respuestaMascota = restClient.get()
+                    .uri(mascotasUrl + "/" + id)
+                    .retrieve()
+                    .body(String.class);
+
+            String respuestaGeo = restClient.get()
+                    .uri(geoUrl)
+                    .retrieve()
+                    .body(String.class);
+
+            JsonNode m = objectMapper.readTree(respuestaMascota);
+            JsonNode ubicaciones = objectMapper.readTree(respuestaGeo);
+
+            JsonNode ubi = null;
+            for (JsonNode u : ubicaciones) {
+                if (u.get("mascotaId").asInt() == id) {
+                    ubi = u;
+                    break;
+                }
+            }
+
+            return MascotaConsolidadaDTO.builder()
+                    .idMascota(id)
+                    .nombre(m.has("nombre") ? m.get("nombre").asText() : null)
+                    .raza(m.has("raza") ? m.get("raza").asText() : null)
+                    .estado(m.has("estado") ? m.get("estado").asText() : null)
+                    .color(m.has("color") ? m.get("color").asText() : null)
+                    .tamano(m.has("tamano") ? m.get("tamano").asText() : null)
+                    .fotoBytes(m.has("fotoBytes") && !m.get("fotoBytes").isNull()
+                            ? m.get("fotoBytes").asText()
+                            : null)
+                    .latitud(ubi != null && ubi.has("latitud") ? ubi.get("latitud").asDouble() : null)
+                    .longitud(ubi != null && ubi.has("longitud") ? ubi.get("longitud").asDouble() : null)
+                    .direccion(ubi != null && ubi.has("direccion") ? ubi.get("direccion").asText() : null)
+                    .contactoInfo(m.has("contactoInfo") ? m.get("contactoInfo").asText() : null)
+                    .build();
+
+        } catch (HttpClientErrorException e) {
+            throw new ResponseStatusException(e.getStatusCode(), e.getResponseBodyAsString());
+        } catch (Exception e) {
+            throw new RuntimeException("Error al obtener detalle de mascota", e);
+        }
     }
 
     public Object actualizarMascota(Integer id, String mascotaJson, MultipartFile archivo) {
@@ -143,23 +201,37 @@ public class OrquestadorService {
 
         MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
         body.add("mascota", mascotaPart);
-
         if (archivo != null) {
             body.add("archivo", archivo.getResource());
         }
 
-        return restClient.patch()
-                .uri(mascotasUrl + "/" + id)
-                .contentType(MediaType.MULTIPART_FORM_DATA)
-                .body(body)
-                .retrieve()
-                .body(Object.class);
+        try {
+            return restClient.patch()
+                    .uri(mascotasUrl + "/" + id)
+                    .contentType(MediaType.MULTIPART_FORM_DATA)
+                    .body(body)
+                    .retrieve()
+                    .body(Object.class);
+        } catch (HttpClientErrorException e) {
+            throw new ResponseStatusException(e.getStatusCode(), e.getResponseBodyAsString());
+        }
     }
 
     public void eliminarMascotaCompleta(Integer id) {
-        restClient.delete().uri(mascotasUrl + "/" + id).retrieve().toBodilessEntity();
         try {
-            restClient.delete().uri(geoUrl + "/mascota/" + id).retrieve().toBodilessEntity();
+            restClient.delete()
+                    .uri(mascotasUrl + "/" + id)
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (HttpClientErrorException e) {
+            throw new ResponseStatusException(e.getStatusCode(), e.getResponseBodyAsString());
+        }
+
+        try {
+            restClient.delete()
+                    .uri(geoUrl + "/mascota/" + id)
+                    .retrieve()
+                    .toBodilessEntity();
         } catch (Exception ignored) {
         }
     }
