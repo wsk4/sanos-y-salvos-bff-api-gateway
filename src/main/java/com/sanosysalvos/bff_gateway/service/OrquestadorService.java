@@ -33,7 +33,6 @@ public class OrquestadorService {
     @Value("${microservicio.geolocalizacion.url}")
     private String geoUrl;
 
-    // Fix #5: inyección via Builder en vez de RestClient.create()
     public OrquestadorService(RestClient.Builder restClientBuilder, ObjectMapper objectMapper) {
         this.restClient = restClientBuilder.build();
         this.objectMapper = objectMapper;
@@ -51,7 +50,6 @@ public class OrquestadorService {
             bodyMascota.add("archivo", archivo.getResource());
         }
 
-        // Fix 500→400: captura errores del MS mascotas y los propaga con el status correcto
         String respuestaMascotaStr;
         try {
             respuestaMascotaStr = restClient.post()
@@ -82,7 +80,6 @@ public class OrquestadorService {
                         .retrieve()
                         .body(Object.class);
             } catch (HttpClientErrorException e) {
-                // Si geo falla, la mascota ya fue creada — se propaga el error igual
                 throw new ResponseStatusException(e.getStatusCode(), e.getResponseBodyAsString());
             }
 
@@ -191,29 +188,6 @@ public class OrquestadorService {
             throw new ResponseStatusException(e.getStatusCode(), e.getResponseBodyAsString());
         } catch (Exception e) {
             throw new RuntimeException("Error al obtener detalle de mascota", e);
-        }
-    }
-
-    public Object actualizarMascota(Integer id, String mascotaJson, MultipartFile archivo) {
-        HttpHeaders jsonHeaders = new HttpHeaders();
-        jsonHeaders.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<String> mascotaPart = new HttpEntity<>(mascotaJson, jsonHeaders);
-
-        MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-        body.add("mascota", mascotaPart);
-        if (archivo != null) {
-            body.add("archivo", archivo.getResource());
-        }
-
-        try {
-            return restClient.patch()
-                    .uri(mascotasUrl + "/" + id)
-                    .contentType(MediaType.MULTIPART_FORM_DATA)
-                    .body(body)
-                    .retrieve()
-                    .body(Object.class);
-        } catch (HttpClientErrorException e) {
-            throw new ResponseStatusException(e.getStatusCode(), e.getResponseBodyAsString());
         }
     }
 
