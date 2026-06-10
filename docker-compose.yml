@@ -1,11 +1,9 @@
-version: '3.8'
-
 services:
-  bff-gateway:
+  api-gateway:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: sanos-bff-gateway
+    container_name: sanos-api-gateway
     env_file:               
       - .env                 
     ports:
