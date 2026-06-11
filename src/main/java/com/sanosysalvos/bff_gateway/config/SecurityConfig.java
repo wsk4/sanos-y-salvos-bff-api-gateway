@@ -25,7 +25,7 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
             .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
-            .requestMatchers("/dashboard").permitAll()
+            .requestMatchers("/api/bff/v1/dashboard").permitAll()
             .requestMatchers("/mascotas/*").permitAll()
             .anyRequest().authenticated()
         )
