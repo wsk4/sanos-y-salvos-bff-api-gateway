@@ -24,10 +24,11 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
-                .requestMatchers("/api/**").authenticated()
-                .anyRequest().denyAll()
-            )
+            .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+            .requestMatchers("/dashboard").permitAll()
+            .requestMatchers("/mascotas/*").permitAll()
+            .anyRequest().authenticated()
+        )
             .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()));
 
         return http.build();
@@ -37,13 +38,15 @@ public class SecurityConfig {
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
+        // Mantiene los orígenes que ya tenías configurados
         config.setAllowedOriginPatterns(List.of(
-            "https://*.brs.devtunnels.ms",
-            "http://localhost:3000",
-            "http://localhost:5173"
+                "https://*.brs.devtunnels.ms",
+                "http://localhost:3000",
+                "http://localhost:5173"
         ));
 
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        // Permite explícitamente el header de Autorización para el Token JWT
         config.setAllowedHeaders(List.of("Authorization", "Cache-Control", "Content-Type"));
         config.setAllowCredentials(true);
 
