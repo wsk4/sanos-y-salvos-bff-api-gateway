@@ -1,0 +1,103 @@
+# =========================================================================
+# 1. GRUPO DE VARIABLES DE ENTORNO COMPARTIDAS (Secretos globales)
+# =========================================================================
+envVarGroups:
+  - name: sanos-global-secrets
+    envVars:
+      - key: CLERK_ISSUER_URL
+        sync: false # Al estar en false, Render te pedirá el valor en la UI de forma segura
+      - key: LOCATIONIQ_API_KEY
+        sync: false # Secreto: Se introduce manualmente en la UI al desplegar
+      - key: LOCATIONIQ_API_URL
+        value: https://us1.locationiq.com/v1 # Valor por defecto no-sensible
+
+# =========================================================================
+# 2. DECLARACIÓN DE SERVICIOS
+# =========================================================================
+services:
+  # --- API GATEWAY (Servicio Público) ---
+  - type: web
+    name: sanos-api-gateway
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    envVarGroups:
+      - name: sanos-global-secrets # Inyecta automáticamente Clerk en la Gateway
+    envVars:
+      - key: SERVER_PORT
+        value: 8080
+      # Enrutamiento DNS interno de Render utilizando interpolación dinámica
+      - key: MS_MASCOTAS_URL
+        value: http://sanos-ms-mascotas:8080
+      - key: MS_GEOLOCALIZACION_URL
+        value: http://sanos-ms-geolocalizacion:8081
+
+  # --- MICROSERVICIO: MASCOTAS (Servicio Privado) ---
+  - type: pserv
+    name: sanos-ms-mascotas
+    env: docker
+    repo: https://github.com/tu-usuario/sanos-ms-mascotas # Cambiar por tu repo real
+    branch: main
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    envVars:
+      - key: PORT
+        value: 8080
+      # Mapeo dinámico desde la base de datos de gestión hacia las variables de Node/Sequelize
+      - key: DB_HOST
+        fromDatabase:
+          name: postgres-gestion
+          property: host
+      - key: DB_PORT
+        fromDatabase:
+          name: postgres-gestion
+          property: port
+      - key: DB_NAME
+        fromDatabase:
+          name: postgres-gestion
+          property: database
+      - key: DB_USER
+        fromDatabase:
+          name: postgres-gestion
+          property: user
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: postgres-gestion
+          property: password
+
+  # --- MICROSERVICIO: GEOLOCALIZACION (Servicio Privado) ---
+  - type: pserv
+    name: sanos-ms-geolocalizacion
+    env: docker
+    repo: https://github.com/tu-usuario/sanos-ms-geolocalizacion # Cambiar por tu repo real
+    branch: main
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    envVarGroups:
+      - name: sanos-global-secrets # Inyecta automáticamente las llaves de LocationIQ aquí
+    envVars:
+      - key: SERVER_PORT
+        value: 8081
+      # Inyección dinámica de la URL JDBC compuesta para Spring Boot utilizando variables cruzadas
+      幕- key: SPRING_DATASOURCE_URL
+        value: jdbc:postgresql://${postgres-geolocalizacion.host}:${postgres-geolocalizacion.port}/${postgres-geolocalizacion.database}
+      - key: SPRING_DATASOURCE_USERNAME
+        fromDatabase:
+          name: postgres-geolocalizacion
+          property: user
+      - key: SPRING_DATASOURCE_PASSWORD
+        fromDatabase:
+          name: postgres-geolocalizacion
+          property: password
+
+# =========================================================================
+# 3. BASES DE DATOS GESTIONADAS (PostgreSQL con PostGIS nativo)
+# =========================================================================
+databases:
+  - name: postgres-gestion
+    plan: starter
+    postgresVersion: 15
+
+  - name: postgres-geolocalizacion
+    plan: starter
+    postgresVersion: 15
