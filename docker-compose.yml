@@ -1,20 +1,20 @@
 version: '3.8'
 
 services:
-  bff-gateway:
+  api-gateway:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: sanos-bff-gateway
+    container_name: sanos-api-gateway
+    restart: unless-stopped
     env_file:               
       - .env                 
     ports:
-      - "${SERVER_PORT}:${SERVER_PORT}"
+      - "${SERVER_PORT}:${SERVER_PORT}" # Único componente expuesto al mundo exterior
     environment:
+      # Dejamos solo lo estrictamente necesario si requieres transformaciones dinámicas,
+      # el resto se lee automáticamente desde el archivo .env de forma limpia.
       SERVER_PORT: ${SERVER_PORT}
-      MS_MASCOTAS_URL: ${MS_MASCOTAS_URL}
-      MS_GEOLOCALIZACION_URL: ${MS_GEOLOCALIZACION_URL}
-      CLERK_ISSUER_URL: ${CLERK_ISSUER_URL}
     networks:
       - sanos-network
 
