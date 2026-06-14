@@ -20,13 +20,11 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @EnableWebSecurity
 public class SecurityConfig {
 
-    // Inyecta la URL del JWKS desde el .env
     @Value("${CLERK_ISSUER_URL}")
     private String clerkIssuerUrl;
 
     @Bean
     public JwtDecoder jwtDecoder() {
-        // Apunta directo al JWKS de Clerk — sin discovery, sin comparación de issuer
         String jwksUri = clerkIssuerUrl.replaceAll("/$", "") + "/.well-known/jwks.json";
         return NimbusJwtDecoder.withJwkSetUri(jwksUri).build();
     }
@@ -49,14 +47,25 @@ public class SecurityConfig {
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
+
         config.setAllowedOriginPatterns(List.of(
-                "https://*.brs.devtunnels.ms",
-                "http://localhost:3000",
-                "http://localhost:5173"
+            "https://frontend-sanos-y-salvos.vercel.app",
+            "https://*.brs.devtunnels.ms",
+            "http://localhost:3000",
+            "http://localhost:5173",
+            "https://*.vercel.app"
         ));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Cache-Control", "Content-Type"));
+
+        config.setAllowedMethods(List.of(
+            "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"
+        ));
+
+        config.setAllowedHeaders(List.of(
+            "Authorization", "Cache-Control", "Content-Type"
+        ));
+
         config.setAllowCredentials(true);
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
